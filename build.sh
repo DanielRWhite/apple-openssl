@@ -12,10 +12,29 @@ rm -rf .cache
 mkdir -p .cache
 cd .cache
 
-OPENSSL_VERSION="openssl-1.1.1s"
-IOS_SDK_VERSION=$(xcodebuild -version -sdk iphoneos | grep SDKVersion | cut -f2 -d ':' | tr -d '[[:space:]]')
-MIN_IOS_VERSION="7.0"
-MIN_OSX_VERSION="10.7"
+if [[ -z $BUILD_MACOS_ARCHS ]]; then
+	BUILD_MACOS_ARCHS="arm64,x86_64"
+fi
+
+if [[ -z $BUILD_IOS_ARCHS ]]; then
+	BUILD_IOS_ARCHS="armv7,arm64,x86_64"
+fi
+
+if [[ -z $OPENSSL_VERSION ]]; then
+	OPENSSL_VERSION="openssl-1.1.1s"
+fi
+
+if [[ -z $IOS_SDK_VERSION ]]; then
+	IOS_SDK_VERSION=$(xcodebuild -version -sdk iphoneos | grep SDKVersion | cut -f2 -d ':' | tr -d '[[:space:]]')
+fi
+
+if [[ -z $MIN_IOS_VERSION ]]; then
+	MIN_IOS_VERSION="7.0"
+fi
+
+if [[ -z $MIN_OSX_VERSION ]]; then
+	MIN_OSX_VERSION="10.7"
+fi
 
 echo "----------------------------------------"
 echo "OpenSSL version: ${OPENSSL_VERSION}"
@@ -28,7 +47,7 @@ DEVELOPER=`xcode-select -print-path`
 buildMac() {
 	ARCH=$1
 
-	echo "Starting build for ${OPENSSL_VERSION} (${ARCH})"
+	echo "Building ${OPENSSL_VERSION} (${ARCH})"
 	TARGET="darwin64-arm64-cc"
 	if [[ $ARCH == "x86_64" ]]; then
 		TARGET="darwin64-x86_64-cc"
@@ -66,7 +85,7 @@ buildIOS() {
 	ARCH=$1
 	PLATFORM=$2
   
-	echo "Starting build for ${OPENSSL_VERSION} (${PLATFORM} ${IOS_SDK_VERSION} ${ARCH})"	
+	echo "Building ${OPENSSL_VERSION} (${PLATFORM} ${IOS_SDK_VERSION} ${ARCH})"	
 	pushd . > /dev/null
 
 	rm -rf "${ROOT_DIR}/libs/ios/${ARCH}"
@@ -105,28 +124,38 @@ buildIOS() {
 	rm -rf $SOURCE_DIR
 }
 
-echo ""
-echo "=== Building Mac Libraries ==="
-buildMac "arm64"
-buildMac "x86_64"
+if [[ $BUILD_MACOS_ARCHS != "none" ]]; then
+	echo ""
+	echo "=== Building Mac Libraries ==="
 
-echo ""
-echo "=== Building iOS Libraries ==="
-buildIOS "armv7" "iPhoneOS"
-buildIOS "arm64" "iPhoneOS"
+	if [[ "${BUILD_MACOS_ARCHS}" == *"arm64"* ]]; then
+		buildMac "arm64"
+	fi
 
-echo ""
-echo "=== Building iOS Simulator Libraries ==="
-buildIOS "x86_64" "iPhoneSimulator"
+	if [[ "${BUILD_MACOS_ARCHS}" == *"x86_64"* ]]; then
+		buildMac "x86_64"
+	fi
+fi
+
+if [[ $BUILD_IOS_ARCHS != "none" ]]; then
+	echo ""
+	echo "=== Building iOS Libraries ==="
+
+	if [[ "${BUILD_IOS_ARCHS}" == *"armv7"* ]]; then
+		buildIOS "armv7" "iPhoneOS"
+	fi
+
+	if [[ "${BUILD_IOS_ARCHS}" == *"arm64"* ]]; then
+		buildIOS "arm64" "iPhoneOS"
+	fi
+
+	if [[ "${BUILD_IOS_ARCHS}" == *"x86_64"* ]]; then
+		buildIOS "x86_64" "iPhoneSimulator"
+	fi
+fi
 
 cd $ROOT_DIR
 rm -rf .cache
 
-echo "=== Done ==="
-echo "[MacOS libraries (Apple Silicon)] Run: export OPENSSL_DIR=$(pwd)/libs/mac/arm64/"
-echo "[MacOS libraries (Intel)], Run: export OPENSSL_DIR=$(pwd)/libs/mac/x86_64/"
-echo "[iOS libraries (armv7)] Run: export OPENSSL_DIR=$(pwd)/libs/ios/armv7/"
-echo "[iOS libraries (arm64)] Run: export OPENSSL_DIR=$(pwd)/libs/ios/arm64/"
-echo "[iOS Simulator libraries (Apple Silicon Mac)] Run: export OPENSSL_DIR=$(pwd)/libs/ios/arm64/"
-echo "[iOS Simulator libraries (Intel Mac)] Run: export OPENSSL_DIR=$(pwd)/libs/ios/x86_64/"
-
+echo ""
+echo "Done!"
